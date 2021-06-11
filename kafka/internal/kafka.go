@@ -137,9 +137,8 @@ func handleBinaryEvent(m *kafka.Message) error {
 
 	log.Debugf("%v", event.String())
 
-	utils.SendCloudEvent("", "")
+	return utils.SendCloudEvent(&event)
 
-	return nil
 }
 
 func handleCloudEvent(key, value string) error {
@@ -165,7 +164,7 @@ func handleCloudEvent(key, value string) error {
 		return fmt.Errorf("cloudevent type is missing")
 	}
 
-	return nil
+	return utils.SendCloudEvent(&event)
 
 }
 
@@ -215,7 +214,7 @@ func (kl *KafkaListener) Listen() error {
 		if isCE {
 			err := handleCloudEvent(string(m.Key), string(m.Value))
 			if err != nil {
-				log.Errorf("message with key '%s' is not a valid cloudevent: %v", string(m.Key), err)
+				log.Errorf("message with key '%s' could not be send: %v", string(m.Key), err)
 			}
 			continue
 		}
@@ -223,7 +222,7 @@ func (kl *KafkaListener) Listen() error {
 		// handle binary
 		err := handleBinaryEvent(&m)
 		if err != nil {
-			log.Errorf("message with key '%s' can not be converted: %v", string(m.Key), err)
+			log.Errorf("binary message with key '%s' could not be send: %v", string(m.Key), err)
 		}
 
 	}
