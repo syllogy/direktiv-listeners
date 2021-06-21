@@ -1,6 +1,6 @@
 # SNMP Trap
 
-TODO
+Captures SNMP 'TRAP' messages, and forwards them on to the specified Direktiv backend.
 
 ### Example 
 
