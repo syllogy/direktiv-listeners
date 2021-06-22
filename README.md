@@ -93,5 +93,13 @@ content-type: application/avro
 #### Example workflow
 
 ```yaml
-
+id: action
+start:
+  type: event
+  event:
+    type: com.au.test
+states:
+- id: notify
+  type: noop
+  log: .
 ```

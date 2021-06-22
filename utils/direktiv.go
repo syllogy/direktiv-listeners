@@ -8,6 +8,7 @@ import (
 	"os"
 
 	cloudevents "github.com/cloudevents/sdk-go/v2"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -16,23 +17,23 @@ const (
 )
 
 // SendCloudEvent sends cloud events to direktiv
-func SendCloudEvent(event *cloudevents.Event) error {
+func SendCloudEvent(event *cloudevents.Event) (*http.Response, error) {
 
 	b, err := json.Marshal(event)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	url := os.Getenv(direktivURL)
 	token := os.Getenv(direktivToken)
 
 	if url == "" {
-		return fmt.Errorf("no direktiv url provided")
+		return nil, fmt.Errorf("no direktiv url provided")
 	}
 
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(b))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer req.Body.Close()
 
@@ -42,17 +43,17 @@ func SendCloudEvent(event *cloudevents.Event) error {
 
 	req.Header.Set("Content-Type", "application/json")
 
-	fmt.Printf("%+v\n", req)
+	log.Debugf("sending to %v", req.URL)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 300 {
-		return fmt.Errorf("postEvent returned status code %d", resp.StatusCode)
+		return nil, fmt.Errorf("postEvent returned status code %d", resp.StatusCode)
 	}
 
-	return nil
+	return resp, nil
 }

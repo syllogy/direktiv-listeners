@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"github.com/rs/xid"
 	kafka "github.com/segmentio/kafka-go"
@@ -137,7 +138,8 @@ func handleBinaryEvent(m *kafka.Message) error {
 
 	log.Debugf("%v", event.String())
 
-	return utils.SendCloudEvent(&event)
+	_, err = utils.SendCloudEvent(&event)
+	return err
 
 }
 
@@ -164,7 +166,9 @@ func handleCloudEvent(key, value string) error {
 		return fmt.Errorf("cloudevent type is missing")
 	}
 
-	return utils.SendCloudEvent(&event)
+	_, err = utils.SendCloudEvent(&event)
+
+	return err
 
 }
 
