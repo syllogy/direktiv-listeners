@@ -1,0 +1,8 @@
+smtp:
+  address: localhost
+  port: 2525
+  insecureSkipVerify: true
+direktiv:
+  endpoint: https://dev.local/api/namespaces/admin/event
+  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwcmVmZXJyZWRfdXNlcm5hbWUiOiJ0b2tlbi1jMTU4ZGViNy00NWMyLTRlODEtYjg3Yi1kYzRhZjBkY2FhOTciLCJncm91cHMiOlsidG9rZW4tYzE1OGRlYjctNDVjMi00ZTgxLWI4N2ItZGM0YWYwZGNhYTk3Il0sImV4cCI6MTYyNzQ0MjExMCwiaXNzIjoiZGlyZWt0aXYifQ.T-txuqkh_L_R2tv3Po3MvMf7Rh6kbJf4xqV80Udw6Yk
+internal: vorteil.io
