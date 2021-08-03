@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"crypto/tls"
-	b64 "encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -12,6 +11,8 @@ import (
 	"net/http"
 	"net/mail"
 	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 
 	cloudevents "github.com/cloudevents/sdk-go"
@@ -36,17 +37,30 @@ type Config struct {
 
 type Attachment struct {
 	Data        string `json:"data"`
-	ContentType string `json:"content-type"`
+	ContentType string `json:"type"`
 	Name        string `json:"name"`
 }
 
 type ZipAttachment struct {
 	Data string `json:"data"`
+	Type string `json:"type"`
 	Name string `json:"name"`
 }
 
 func mailHandler(origin net.Addr, from string, to []string, data []byte) error {
 	log.Println("reading message")
+	split := strings.Split(string(data), "\r\n")
+	boundaryCheck := ""
+	// Find the mime text boundary
+	for _, x := range split {
+		if strings.Contains(x, "Content-Type: multipart/mixed; boundary=") {
+			y := strings.TrimPrefix(x, "Content-Type: multipart/mixed; boundary=\"")
+			y = strings.TrimSuffix(y, "\"")
+			boundaryCheck = y
+			break
+		}
+	}
+
 	// read message that was received
 	msg, err := mail.ReadMessage(bytes.NewReader(data))
 	if err != nil {
@@ -64,7 +78,8 @@ func mailHandler(origin net.Addr, from string, to []string, data []byte) error {
 
 		return err
 	}
-	pl, err := handleSMTPPayload(string(data))
+
+	pl, err := handleSMTPPayload(fmt.Sprintf("--%s", boundaryCheck), string(data))
 	if err != nil {
 		log.Printf("handleSMTPPayload: %v\n", err)
 
@@ -72,6 +87,13 @@ func mailHandler(origin net.Addr, from string, to []string, data []byte) error {
 	}
 
 	attachments := make([]Attachment, 0)
+
+	ref, err := regexp.Compile(`filename="[\w-/.\ ()]*"`)
+	if err != nil {
+		log.Printf("regexp compiler: %v\n", err)
+		return err
+
+	}
 	for _, attachment := range pl.Attachments {
 		var payload string
 		var cte string
@@ -81,48 +103,60 @@ func mailHandler(origin net.Addr, from string, to []string, data []byte) error {
 				payload = v
 				continue
 			}
+
+			if k == "Content-Disposition" {
+				fmt.Println(v)
+				d := ref.Find([]byte(v))
+				if len(d) > 0 {
+					f := strings.TrimPrefix(string(d), "filename=\"")
+					f = strings.TrimSuffix(f, "\"")
+					fmt.Println("filename: %s\n", f)
+					name = f
+				} else {
+					name = "no-name"
+				}
+			}
 			if k == "Content-Transfer-Encoding" {
 				cte = v
-			}
-			if k == "Content-Type" {
-				split := strings.Split(v, ";")[1]
-				split = strings.TrimPrefix(split, " name=\"")
-				split = strings.TrimSuffix(split, "\"\r")
-				if strings.Contains(split, ".") {
-					name = split
-				} else {
-					name = "body"
-				}
 			}
 		}
 		var attach Attachment
 		attach.Data = payload
 		attach.ContentType = cte
-		attach.Name = name
+		attach.Name = "no-name"
+		if name != "" {
+			attach.Name = name
+		}
 		attachments = append(attachments, attach)
 	}
 
 	var message string
 	for i, attach := range attachments {
 		if strings.Contains(attach.ContentType, "base64") {
-			sDec, _ := b64.StdEncoding.DecodeString(attach.Data)
-			attachments[i].Data = string(sDec)
+			// sDec, _ := b64.StdEncoding.DecodeString(attach.Data)
+			// d := strings.TrimSpace(attachments[i].Data)
+			// attachments[i].Data = fmt.Sprintf("%s", d)
+			// fmt.Printf("D::%s\n", d)
 		}
-		if attach.Name == "body" {
+		fmt.Println(attach.Name)
+		if attach.Name == "no-name" {
 			message = attach.Data
+		} else {
+			attachments[i].Name = filepath.Base(attach.Name)
 		}
 	}
 
 	attachNew := make([]ZipAttachment, 0)
 	for _, attach := range attachments {
-		if attach.Name != "body" {
+		if attach.Name != "no-name" {
 			attachNew = append(attachNew, ZipAttachment{
 				Name: attach.Name,
 				Data: attach.Data,
+				Type: strings.TrimSpace(strings.TrimSuffix(attach.ContentType, "\r")),
 			})
 		}
 	}
-
+	// fmt.Printf("%+v", attachNew)
 	log.Println("creating cloud event")
 	event := cloudevents.NewEvent()
 	event.SetID("smtp-cloud")
@@ -138,13 +172,12 @@ func mailHandler(origin net.Addr, from string, to []string, data []byte) error {
 	})
 	if err != nil {
 		log.Printf("ce set data: %v\n", err)
-
 		return err
 	}
+
 	dd, err := json.Marshal(event)
 	if err != nil {
 		log.Printf("ce marshal: %v\n", err)
-
 		return err
 	}
 
@@ -152,7 +185,6 @@ func mailHandler(origin net.Addr, from string, to []string, data []byte) error {
 	req, err := http.NewRequest("POST", gcConfig.Direktiv.DirektivEndpoint, bytes.NewReader(dd))
 	if err != nil {
 		log.Printf("send ce: %v\n", err)
-
 		return err
 	}
 
@@ -172,6 +204,14 @@ func mailHandler(origin net.Addr, from string, to []string, data []byte) error {
 
 		return err
 	}
+
+	data, err = ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("direktiv read response: %v\n", err)
+		return err
+	}
+
+	log.Printf("Response from direktiv: %s\n", data)
 	defer resp.Body.Close()
 
 	return nil

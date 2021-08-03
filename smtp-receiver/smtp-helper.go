@@ -1,18 +1,19 @@
 package main
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 )
 
-const sectionDelimiterRegex = `--[0-9]{1,100}-[0-9]{1,100}=:[0-9]{1,100}`
+// const sectionDelimiterRegex = `--[0-9]{1,100}-[0-9]{1,100}=:[0-9]{1,100}`
 
 type SMTPPayload struct {
 	Metadata    map[string]string
 	Attachments []map[string]string
 }
 
-func handleSMTPPayload(payload string) (*SMTPPayload, error) {
+func handleSMTPPayload(regex, payload string) (*SMTPPayload, error) {
 
 	parsedPayload := new(SMTPPayload)
 	parsedPayload.Metadata = make(map[string]string)
@@ -28,7 +29,7 @@ func handleSMTPPayload(payload string) (*SMTPPayload, error) {
 			continue
 		}
 
-		ok, err := regexp.Match(sectionDelimiterRegex, []byte(str))
+		ok, err := regexp.Match(regex, []byte(str))
 		if err != nil {
 			panic(err)
 		}
@@ -40,7 +41,7 @@ func handleSMTPPayload(payload string) (*SMTPPayload, error) {
 				continue
 			} else {
 				endIndex = k - 1
-				section, err := handleSMTPSection(elems, startIndex, endIndex+1)
+				section, err := handleSMTPSection(regex, elems, startIndex, endIndex+1)
 				if err != nil {
 					panic(err)
 				}
@@ -67,7 +68,7 @@ func handleSMTPPayload(payload string) (*SMTPPayload, error) {
 
 }
 
-func handleSMTPSection(elems []string, start, end int) (map[string]string, error) {
+func handleSMTPSection(regex string, elems []string, start, end int) (map[string]string, error) {
 
 	sectionRange := elems[start:end]
 	out := make(map[string]string)
@@ -76,14 +77,26 @@ func handleSMTPSection(elems []string, start, end int) (map[string]string, error
 
 	var endHeaders int
 
+	var carryOver string
+
 	for line, str := range sectionRange[1:] {
 
-		if ok, _ := regexp.Match(sectionDelimiterRegex, []byte(str)); ok {
+		if ok, _ := regexp.Match(regex, []byte(str)); ok {
 			continue
+		}
+		if carryOver != "" {
+			str = fmt.Sprintf("%s %s", strings.TrimSpace(carryOver), strings.TrimSpace(str))
+			carryOver = ""
 		}
 
 		kv := strings.Split(str, ":")
 		if len(kv) > 1 {
+
+			if strings.HasSuffix(strings.TrimSpace(str), ";") {
+				carryOver = str
+				continue
+			}
+
 			k := kv[0]
 			v := strings.Join(kv[1:], ":")
 
