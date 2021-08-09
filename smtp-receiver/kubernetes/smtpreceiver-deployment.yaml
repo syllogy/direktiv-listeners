@@ -10,7 +10,7 @@ data:
       port: 8888
       insecureSkipVerify: true
     direktiv:
-      endpoint: https://dev.local/api/namespaces/admin/event
+      endpoint: https://direktiv-api-service:8080/api/namespaces/admin/event
       token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwcmVmZXJyZWRfdXNlcm5hbWUiOiJ0b2tlbi05NDI3YTdjZC1hYTA5LTRjYzQtOTM0Yy1mZmExYTEwN2NkY2IiLCJncm91cHMiOlsidG9rZW4tOTQyN2E3Y2QtYWEwOS00Y2M0LTkzNGMtZmZhMWExMDdjZGNiIl0sImV4cCI6MTYyNzUyMDgzOCwiaXNzIjoiZGlyZWt0aXYifQ.-G6ZDA09y86Fzc8U2D11Z1tcFwh7eWnL-KbgiNd8HI8
     internal: vorteil.io
 ---
@@ -43,7 +43,7 @@ spec:
         runAsGroup: 22222
       containers:
         - name: smtp-listener
-          image: trentis/smtp-receiver:v3
+          image: vorteil/smtp-receiver:latest
           ports:
             - containerPort: 8888
           volumeMounts:
