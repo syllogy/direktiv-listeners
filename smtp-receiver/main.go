@@ -14,7 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-
+	"math/rand"
 	cloudevents "github.com/cloudevents/sdk-go"
 	"github.com/mhale/smtpd"
 	"gopkg.in/yaml.v2"
@@ -159,7 +159,7 @@ func mailHandler(origin net.Addr, from string, to []string, data []byte) error {
 	// fmt.Printf("%+v", attachNew)
 	log.Println("creating cloud event")
 	event := cloudevents.NewEvent()
-	event.SetID("smtp-cloud")
+	event.SetID(fmt.Sprintf("smtp-cloud-%v", rand.Int()))
 	event.SetSource("smtp/msg")
 	event.SetType("smtp")
 
@@ -190,8 +190,9 @@ func mailHandler(origin net.Addr, from string, to []string, data []byte) error {
 
 	// set access token if provided.
 	if gcConfig.Direktiv.Token != "" {
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", gcConfig.Direktiv.Token)
-		req.Header.Set("Direktiv-Token", true)
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", gcConfig.Direktiv.Token))
+		req.Header.Set("Content-Type", "application/cloudevents+json; charset=UTF-8")
+		req.Header.Set("Direktiv-Token", "true")
 	}
 
 	tr := &http.Transport{
