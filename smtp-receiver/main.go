@@ -190,7 +190,8 @@ func mailHandler(origin net.Addr, from string, to []string, data []byte) error {
 
 	// set access token if provided.
 	if gcConfig.Direktiv.Token != "" {
-		req.Header.Set("Authorization", gcConfig.Direktiv.Token)
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", gcConfig.Direktiv.Token)
+		req.Header.Set("Direktiv-Token", true)
 	}
 
 	tr := &http.Transport{
