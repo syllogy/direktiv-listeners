@@ -34,3 +34,7 @@ A little test app is in test directory. It attaches everything in test/attachmen
 ```
 go run test.go MY_KUBERNETS_IP:2525 email1@email email2@email
 ```
+
+## Version
+
+direktiv/smtp-listener:v0.1
