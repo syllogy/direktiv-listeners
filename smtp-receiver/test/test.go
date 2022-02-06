@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/mail"
 	"os"
 
@@ -23,19 +24,19 @@ func main() {
 	server := os.Args[1]
 	fmt.Printf("sending with %s\n", server)
 
-	// files, err := ioutil.ReadDir("./attachments")
-	// if err != nil {
-	// 	panic(err)
-	// }
+	files, err := ioutil.ReadDir("./attachments")
+	if err != nil {
+		panic(err)
+	}
 
-	// for i := range files {
-	// 	f := files[i]
-	// 	fmt.Printf("attaching %v\n", f.Name())
-	// 	err = m.Attach(fmt.Sprintf("./attachments/%s", f.Name()))
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// }
+	for i := range files {
+		f := files[i]
+		fmt.Printf("attaching %v\n", f.Name())
+		err = m.Attach(fmt.Sprintf("./attachments/%s", f.Name()))
+		if err != nil {
+			panic(err)
+		}
+	}
 
 	to := []string{}
 	for a := range os.Args {
