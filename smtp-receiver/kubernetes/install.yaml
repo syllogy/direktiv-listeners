@@ -41,7 +41,7 @@ spec:
         runAsGroup: 65532
       containers:
         - name: smtp-listener
-          image: localhost:5000/smtp-listener:latest
+          image: direktiv/smtp-listener:v0.1
           imagePullPolicy: Always
           ports:
             - containerPort: 2525
