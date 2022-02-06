@@ -51,7 +51,7 @@ func main() {
 
 	// fmt.Printf("%s\n", string(m.Bytes()))
 
-	err := email.Send(server, nil, m)
+	err = email.Send(server, nil, m)
 	if err != nil {
 		fmt.Printf("can not send email: %v", err)
 	}
