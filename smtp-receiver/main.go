@@ -1,232 +1,139 @@
 package main
 
 import (
-	"bytes"
-	"crypto/tls"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
-	"net"
-	"net/http"
-	"net/mail"
-	"os"
-	"path/filepath"
-	"regexp"
-	"strings"
 	"math/rand"
+	"os"
+	"time"
+
 	cloudevents "github.com/cloudevents/sdk-go"
-	"github.com/mhale/smtpd"
+	"github.com/emersion/go-message/mail"
+	"github.com/emersion/go-smtp"
 	"gopkg.in/yaml.v2"
 )
 
 var gcConfig Config
+var r *rand.Rand
 
 type Config struct {
 	SMTP struct {
-		Address            string `yaml:"address"`
-		Port               int    `yaml:"port"`
-		InsecureSkipVerify bool   `yaml:"insecureSkipVerify"`
+		Address string `yaml:"address"`
 	} `yaml:"smtp"`
 	Direktiv struct {
-		DirektivEndpoint string `yaml:"endpoint"`
-		Token            string `yaml:"token"`
+		DirektivEndpoint   string `yaml:"endpoint"`
+		Token              string `yaml:"token"`
+		ApiKey             string `yaml:"apikey"`
+		InsecureSkipVerify bool   `yaml:"insecureSkipVerify"`
 	} `yaml:"direktiv"`
-	Internal string `json:"internal"`
 }
 
-type Attachment struct {
-	Data        string `json:"data"`
-	ContentType string `json:"type"`
-	Name        string `json:"name"`
+type backend struct{}
+
+type session struct {
+	to    []string
+	event cloudevents.Event
+	data  map[string]interface{}
 }
 
-type ZipAttachment struct {
-	Data string `json:"data"`
-	Type string `json:"type"`
-	Name string `json:"name"`
-}
-
-func mailHandler(origin net.Addr, from string, to []string, data []byte) error {
-	log.Println("reading message")
-	split := strings.Split(string(data), "\r\n")
-	boundaryCheck := ""
-	// Find the mime text boundary
-	for _, x := range split {
-		if strings.Contains(x, "Content-Type: multipart/mixed; boundary=") {
-			y := strings.TrimPrefix(x, "Content-Type: multipart/mixed; boundary=\"")
-			y = strings.TrimSuffix(y, "\"")
-			boundaryCheck = y
-			break
-		}
-	}
-
-	// read message that was received
-	msg, err := mail.ReadMessage(bytes.NewReader(data))
-	if err != nil {
-		log.Printf("readmsg: %v\n", err)
-		return err
-	}
-	// get subject header
-	subject := msg.Header.Get("Subject")
-
-	log.Println("reading body")
-	// read data
-	data, err = ioutil.ReadAll(msg.Body)
-	if err != nil {
-		log.Printf("readmsg body: %v\n", err)
-
-		return err
-	}
-
-	pl, err := handleSMTPPayload(fmt.Sprintf("--%s", boundaryCheck), string(data))
-	if err != nil {
-		log.Printf("handleSMTPPayload: %v\n", err)
-
-		return err
-	}
-
-	attachments := make([]Attachment, 0)
-
-	ref, err := regexp.Compile(`filename="[\w-/.\ ()]*"`)
-	if err != nil {
-		log.Printf("regexp compiler: %v\n", err)
-		return err
-
-	}
-	for _, attachment := range pl.Attachments {
-		var payload string
-		var cte string
-		var name string
-		for k, v := range attachment {
-			if k == "PAYLOAD" {
-				payload = v
-				continue
-			}
-
-			if k == "Content-Disposition" {
-				fmt.Println(v)
-				d := ref.Find([]byte(v))
-				if len(d) > 0 {
-					f := strings.TrimPrefix(string(d), "filename=\"")
-					f = strings.TrimSuffix(f, "\"")
-					fmt.Println("filename: %s\n", f)
-					name = f
-				} else {
-					name = "no-name"
-				}
-			}
-			if k == "Content-Transfer-Encoding" {
-				cte = v
-			}
-		}
-		var attach Attachment
-		attach.Data = payload
-		attach.ContentType = cte
-		attach.Name = "no-name"
-		if name != "" {
-			attach.Name = name
-		}
-		attachments = append(attachments, attach)
-	}
-
-	var message string
-	for i, attach := range attachments {
-		if strings.Contains(attach.ContentType, "base64") {
-			// sDec, _ := b64.StdEncoding.DecodeString(attach.Data)
-			// d := strings.TrimSpace(attachments[i].Data)
-			// attachments[i].Data = fmt.Sprintf("%s", d)
-			// fmt.Printf("D::%s\n", d)
-		}
-		fmt.Println(attach.Name)
-		if attach.Name == "no-name" {
-			message = attach.Data
-		} else {
-			attachments[i].Name = filepath.Base(attach.Name)
-		}
-	}
-
-	attachNew := make([]ZipAttachment, 0)
-	for _, attach := range attachments {
-		if attach.Name != "no-name" {
-			attachNew = append(attachNew, ZipAttachment{
-				Name: attach.Name,
-				Data: attach.Data,
-				Type: strings.TrimSpace(strings.TrimSuffix(attach.ContentType, "\r")),
-			})
-		}
-	}
-	// fmt.Printf("%+v", attachNew)
-	log.Println("creating cloud event")
-	event := cloudevents.NewEvent()
-	event.SetID(fmt.Sprintf("smtp-cloud-%v", rand.Int()))
-	event.SetSource("smtp/msg")
-	event.SetType("smtp")
-
-	err = event.SetData(map[string]interface{}{
-		"to":          to,
-		"subject":     subject,
-		"attachments": attachNew,
-		"message":     message,
-		"internal":    gcConfig.Internal,
-	})
-	if err != nil {
-		log.Printf("ce set data: %v\n", err)
-		return err
-	}
-
-	dd, err := json.Marshal(event)
-	if err != nil {
-		log.Printf("ce marshal: %v\n", err)
-		return err
-	}
-
-	log.Println("sending cloud event")
-	req, err := http.NewRequest("POST", gcConfig.Direktiv.DirektivEndpoint, bytes.NewReader(dd))
-	if err != nil {
-		log.Printf("send ce: %v\n", err)
-		return err
-	}
-
-	// set access token if provided.
-	if gcConfig.Direktiv.Token != "" {
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", gcConfig.Direktiv.Token))
-		req.Header.Set("Content-Type", "application/cloudevents+json; charset=UTF-8")
-		req.Header.Set("Direktiv-Token", "true")
-	}
-
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: gcConfig.SMTP.InsecureSkipVerify},
-	}
-
-	client := &http.Client{Transport: tr}
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Printf("direktiv response: %v\n", err)
-
-		return err
-	}
-
-	data, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Printf("direktiv read response: %v\n", err)
-		return err
-	}
-
-	log.Printf("Response from direktiv: %s\n", data)
-	defer resp.Body.Close()
-
+func (s *session) AuthPlain(username, password string) error {
 	return nil
 }
 
-func main() {
-	if os.Args[1] == "" {
-		log.Fatal("Config file needs to be provided ./smtp-receiver conf.yaml")
-		return
+func (s *session) Mail(from string, opts smtp.MailOptions) error {
+	s.data["from"] = from
+	return nil
+}
+
+func (s *session) Rcpt(to string) error {
+	s.to = append(s.to, to)
+	return nil
+}
+
+func (s *session) Data(r io.Reader) error {
+	mr, err := mail.CreateReader(r)
+	if err != nil {
+		return err
 	}
 
+	subj, err := mr.Header.Subject()
+	if err != nil {
+		return err
+	}
+	s.data["subject"] = subj
+
+	attachments, message, err := handleAttachments(mr)
+	if err != nil {
+		return err
+	}
+
+	s.data["attachments"] = attachments
+	s.data["message"] = message
+	s.data["to"] = s.to
+
+	s.event.SetData(s.data)
+	return sendCloudEvent(s.event)
+}
+
+func (s *session) Reset() {
+	s.data = make(map[string]interface{})
+	s.event = basicEvent()
+}
+
+func (s *session) Logout() error {
+	return nil
+}
+
+func (bkd *backend) Login(state *smtp.ConnectionState, username, password string) (smtp.Session, error) {
+	return &session{
+		data:  make(map[string]interface{}),
+		event: basicEvent(),
+	}, nil
+}
+
+func (bkd *backend) AnonymousLogin(state *smtp.ConnectionState) (smtp.Session, error) {
+	return &session{
+		data:  make(map[string]interface{}),
+		event: basicEvent(),
+	}, nil
+}
+
+func basicEvent() cloudevents.Event {
+	event := cloudevents.NewEvent()
+	event.SetID(fmt.Sprintf("smtp-cloud-%v", r.Int63()))
+	event.SetSource("direktiv/listener/smtp")
+	event.SetType("smtp.message")
+	return event
+}
+
+func main() {
+
+	r = rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	be := &backend{}
+	s := smtp.NewServer(be)
+
+	if len(os.Args) < 2 {
+		log.Fatal("smtp listener needs config file")
+	}
+
+	readConfig(os.Args[1])
+
+	s.Addr = gcConfig.SMTP.Address
+	s.Domain = "localhost"
+	s.AllowInsecureAuth = true
+	// s.Debug = os.Stdout
+
+	log.Println("Starting SMTP server at", s.Addr)
+	log.Fatal(s.ListenAndServe())
+
+}
+
+func readConfig(cfile string) {
+
 	// Open config file
-	file, err := os.Open(os.Args[1])
+	file, err := os.Open(cfile)
 	if err != nil {
 		log.Fatal("Can not find file or we do not have permission to read")
 		return
@@ -236,12 +143,8 @@ func main() {
 	// Init new YAML decode
 	d := yaml.NewDecoder(file)
 
-	// Start YAML decoding from file
 	if err := d.Decode(&gcConfig); err != nil {
 		log.Fatal("Failed decoding config file")
-		return
 	}
 
-	log.Printf("%+v", gcConfig)
-	log.Fatal(smtpd.ListenAndServe(fmt.Sprintf("%s:%v", gcConfig.SMTP.Address, gcConfig.SMTP.Port), mailHandler, "SMTP-Cloud-Direktiv", ""))
 }

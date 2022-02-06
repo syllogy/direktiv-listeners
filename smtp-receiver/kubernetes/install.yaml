@@ -3,16 +3,15 @@ kind: ConfigMap
 metadata:
   name: smtp-receiver-cfg-cm
 data:
-  # property-like keys; each key maps to a simple value
   config.yaml: |
     smtp:
-      address: 0.0.0.0
-      port: 8888
-      insecureSkipVerify: true
+      address: 0.0.0.0:2525
     direktiv:
-      endpoint: https://direktiv-api-service:8080/api/namespaces/admin/event
-      token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwcmVmZXJyZWRfdXNlcm5hbWUiOiJ0b2tlbi05NDI3YTdjZC1hYTA5LTRjYzQtOTM0Yy1mZmExYTEwN2NkY2IiLCJncm91cHMiOlsidG9rZW4tOTQyN2E3Y2QtYWEwOS00Y2M0LTkzNGMtZmZhMWExMDdjZGNiIl0sImV4cCI6MTYyNzUyMDgzOCwiaXNzIjoiZGlyZWt0aXYifQ.-G6ZDA09y86Fzc8U2D11Z1tcFwh7eWnL-KbgiNd8HI8
-    internal: vorteil.io
+      endpoint: http://direktiv-api.default:8080/api/namespaces/test/broadcast
+      insecureSkipVerify: true
+      # token: mytoken
+      # apikey: apikey
+    event-on-error: true
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -27,6 +26,8 @@ spec:
       app: smtp-listener
   template:
     metadata:
+      annotations:
+        linkerd.io/inject: disabled
       labels:
         app: smtp-listener
     spec:
@@ -34,23 +35,21 @@ spec:
       - name: smtpconf
         configMap:
           name: smtp-receiver-cfg-cm
-          # items:
-          # - key: "config.yaml"
-          #   path: "config.yaml"
       securityContext:
         runAsNonRoot: true
-        runAsUser: 33333
-        runAsGroup: 22222
+        runAsUser: 65532        
+        runAsGroup: 65532
       containers:
         - name: smtp-listener
-          image: vorteil/smtp-receiver:latest
+          image: localhost:5000/smtp-listener:latest
+          imagePullPolicy: Always
           ports:
-            - containerPort: 8888
+            - containerPort: 2525
           volumeMounts:
           - name: smtpconf
             mountPath: "/config"
             readOnly: false
---- 
+---
 apiVersion: v1 
 kind: Service
 metadata:
@@ -60,5 +59,4 @@ spec:
   selector:
     app: smtp-listener
   ports:
-    - port: 8888
-      nodePort: 30123
+    - port: 2525
