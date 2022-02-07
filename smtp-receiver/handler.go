@@ -19,7 +19,7 @@ type Attachment struct {
 	Name        string `json:"name"`
 }
 
-func errorHandler(from string, to []string, err error) {
+func errorHandler(msg string, err error) {
 	log.Printf("ERRRROROO %v", err)
 }
 
@@ -36,9 +36,11 @@ func sendCloudEvent(event cloudevents.Event) error {
 	}
 
 	if len(gcConfig.Direktiv.Token) > 0 {
+		log.Printf("using token to login")
 		options = append(options,
 			cehttp.WithHeader("Direktiv-Token", gcConfig.Direktiv.Token))
 	} else if len(gcConfig.Direktiv.ApiKey) > 0 {
+		log.Printf("using apikey to login")
 		options = append(options,
 			cehttp.WithHeader("apikey", gcConfig.Direktiv.ApiKey))
 	}
@@ -52,11 +54,13 @@ func sendCloudEvent(event cloudevents.Event) error {
 
 	c, err := cloudevents.NewClient(t)
 	if err != nil {
-		panic("unable to create cloudevent client: " + err.Error())
+		log.Printf("unable to create cloudevent client: " + err.Error())
+		return err
 	}
 
 	_, _, err = c.Send(context.Background(), event)
 	if err != nil {
+		log.Printf("unable to send cloudevent client: " + err.Error())
 		return err
 	}
 

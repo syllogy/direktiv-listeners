@@ -11,7 +11,7 @@ make docker
 
 ## Install
 
-Modify kubernetes/install.yaml if required
+Modify kubernetes/install.yaml if required (e.g. apikey, target namespace)
 
 ```
 make install
@@ -22,7 +22,7 @@ make install
 Helm upgrade direktiv with something like the following. 
 
 ```yaml
-nginx-controller:
+ingress-nginx:
   tcp:
     2525: default/smtp-listener-service:2525
 ```
@@ -37,4 +37,4 @@ go run test.go MY_KUBERNETS_IP:2525 email1@email email2@email
 
 ## Version
 
-direktiv/smtp-listener:v0.1
+direktiv/smtp-listener:v0.2

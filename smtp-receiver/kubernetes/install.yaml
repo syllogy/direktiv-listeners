@@ -9,7 +9,7 @@ data:
     direktiv:
       endpoint: http://direktiv-api.default:8080/api/namespaces/test/broadcast
       insecureSkipVerify: true
-      # token: mytoken
+      token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwcmVmZXJyZWRfdXNlcm5hbWUiOiJ0b2tlbi0yYy1iMDkxLTQ5MGItODQwZS03NDViNjBmOWEwYWMiLCJncm91cHMiOlsidG9rZW4tMmMtYjA5MS00OTBiLTg0MGUtNzQ1YjYwZjlhMGFjIl0sImV4cCI6MTk1OTU3NDc2MCwiaXNzIjoiZGlyZWt0aXYifQ.ovChe5jrAeON61lv7RyhNlYeABIv2Rnt4w-Es-SYlMY
       # apikey: apikey
     event-on-error: true
 ---
@@ -55,7 +55,6 @@ kind: Service
 metadata:
   name: smtp-listener-service
 spec:
-  type: NodePort
   selector:
     app: smtp-listener
   ports:

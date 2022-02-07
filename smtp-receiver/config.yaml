@@ -4,7 +4,7 @@ smtp:
 direktiv:
   endpoint: http://192.168.0.177/api/namespaces/test/broadcast
   insecureSkipVerify: true
-  # token: mytoken
+  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwcmVmZXJyZWRfdXNlcm5hbWUiOiJ0b2tlbi03NC0xM2I2LTRmNjItODE1ZC00ZDFjOTA0NzgxZjIiLCJncm91cHMiOlsidG9rZW4tNzQtMTNiNi00ZjYyLTgxNWQtNGQxYzkwNDc4MWYyIl0sImV4cCI6MTY0NDIzMjU5OCwiaXNzIjoiZGlyZWt0aXYifQ.kKy5VPgN-spkd5WO0MWpasgcdkhUgLEfwm-wcKRUvog
   # apikey: apikey
   event-on-error: true
 

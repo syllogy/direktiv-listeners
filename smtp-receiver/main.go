@@ -54,17 +54,20 @@ func (s *session) Rcpt(to string) error {
 func (s *session) Data(r io.Reader) error {
 	mr, err := mail.CreateReader(r)
 	if err != nil {
+		errorHandler("can not create reader", err)
 		return err
 	}
 
 	subj, err := mr.Header.Subject()
 	if err != nil {
+		errorHandler("can not read subject", err)
 		return err
 	}
 	s.data["subject"] = subj
 
 	attachments, message, err := handleAttachments(mr)
 	if err != nil {
+		errorHandler("can not read attachments/body", err)
 		return err
 	}
 
@@ -73,7 +76,14 @@ func (s *session) Data(r io.Reader) error {
 	s.data["to"] = s.to
 
 	s.event.SetData(s.data)
-	return sendCloudEvent(s.event)
+	err = sendCloudEvent(s.event)
+
+	if err != nil {
+		errorHandler("can not send event", err)
+		return err
+	}
+
+	return err
 }
 
 func (s *session) Reset() {
